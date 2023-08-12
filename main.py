@@ -365,7 +365,6 @@ if __name__ == '__main__':
     text_generator = valid_text_generator(author)
     for _ in text_generator:
         pass
-    print("test")
     print("test_________________________")
     text_generator = test_text_generator(author)
     for _ in text_generator:
