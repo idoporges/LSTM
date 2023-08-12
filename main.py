@@ -372,4 +372,5 @@ if __name__ == '__main__':
     #generate_text_from_test(author, model_path, 20)
     #train_author('austen')  # Train on Austen
     #calcAllPerp(author, folder)
+    print("test test test")
 
