@@ -373,4 +373,5 @@ if __name__ == '__main__':
     #train_author('austen')  # Train on Austen
     #calcAllPerp(author, folder)
     print("test test test")
+    print("test test test")
 
