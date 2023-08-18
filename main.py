@@ -9,12 +9,14 @@ import nltk
 import numpy as np
 import tensorflow as tf
 from nltk.corpus import gutenberg
+from keras.preprocessing.sequence import pad_sequences
 from keras.preprocessing.text import Tokenizer
 from keras.models import Sequential
 from keras.models import load_model
 from keras.layers import Embedding, Dense, LSTM
 from keras.optimizers import Adam  # Import Adam optimizer
 from keras.callbacks import ModelCheckpoint
+from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Flatten
 from keras.layers import MultiHeadAttention
 from keras.layers import Input
@@ -90,19 +92,6 @@ def test_text_generator(author):
             yield file.read().lower()
 
 
-def perplexity(model, data_generator):
-    total_cross_entropy = 0
-    total_samples = 0
-    for X_batch, y_batch in data_generator:
-        y_pred = model.predict(X_batch)
-        batch_cross_entropy = keras.losses.sparse_categorical_crossentropy(y_batch, y_pred)
-        total_cross_entropy += np.sum(batch_cross_entropy)
-        total_samples += len(y_batch)
-    average_cross_entropy = total_cross_entropy / total_samples
-    perplexity = math.exp(average_cross_entropy)
-    return perplexity
-
-
 # N is the number of times main text should be duplicated. Large N leads to overfit.
 # turns any text from a generator to a np format in batches
 def data_generator(tokenizer, batch_size, text_generator):
@@ -134,28 +123,26 @@ def generate_sequences(text, tokenizer):
 
 
 # uses model to predict text probabilisticly. might be chaotic.
-def generate_text_probabilities(model, tokenizer, seed_text, num_words):
+def generate_text_argmax(model, tokenizer, seed_text, num_words):
     for _ in range(num_words):
-        # Convert the input text to sequences of tokens
         sequence = tokenizer.texts_to_sequences([seed_text])[0]
+        sequence = pad_sequences([sequence], maxlen=48, padding='pre')
         sequence = np.array(sequence)
         probabilities = model.predict(sequence)[0]
-        predicted_token = np.random.choice(range(len(probabilities)), p=probabilities)
+        predicted_token = np.argmax(probabilities)
         for word, index in tokenizer.word_index.items():
             if index == predicted_token + 1:
                 seed_text += " " + word
                 break
     return seed_text
 
-
-# uses model to predict most likely text by choosing argmax. rigid.
-def generate_text_argmax(model, tokenizer, seed_text, num_words):
+def generate_text_probabilities(model, tokenizer, seed_text, num_words):
     for _ in range(num_words):
-        # Convert the input text to sequences of tokens
         sequence = tokenizer.texts_to_sequences([seed_text])[0]
+        sequence = pad_sequences([sequence], maxlen=48, padding='pre')
         sequence = np.array(sequence)
         probabilities = model.predict(sequence)[0]
-        predicted_token = np.argmax(probabilities)
+        predicted_token = np.random.choice(range(len(probabilities)), p=probabilities)
         for word, index in tokenizer.word_index.items():
             if index == predicted_token + 1:
                 seed_text += " " + word
@@ -209,16 +196,32 @@ def generate_text_from_test(authorName, folder_path, num_words=20):
         print("=" * 50)  # Add a separator for clarity between different model outputs
 
 
+def perplexity(model, data_generator):
+    print("perplexity")
+    total_cross_entropy = 0
+    total_samples = 0
+    for X_batch, y_batch in data_generator:
+        print("loop 2")
+        y_pred = model.predict(X_batch)
+        batch_cross_entropy = keras.losses.sparse_categorical_crossentropy(y_batch, y_pred)
+        total_cross_entropy += np.sum(batch_cross_entropy)
+        total_samples += len(y_batch)
+    average_cross_entropy = total_cross_entropy / total_samples
+    perplexity = math.exp(average_cross_entropy)
+    return perplexity
+
+
 def calcAllPerp(authorName, folder_name):
-    test_text_gen = test_text_generator(authorName)
     model_files = [f for f in os.listdir(folder_name) if f.endswith('.h5')]
     # Create an empty dictionary to store the results
     perplexity_results = {}
     for model_file in model_files:
+        print("loop")
         print("Calculating perplexity for model:", model_file)
         tokenizer_filename = authorName + "_tokenizer"
         with open(tokenizer_filename, 'rb') as handle:
             tokenizer = pickle.load(handle)
+        test_text_gen = test_text_generator(authorName)
         test_data_generator = data_generator(tokenizer, 2**11, test_text_gen)  # assuming a batch size of 32
         model = load_model(os.path.join(folder_name, model_file))
         pplx = perplexity(model, test_data_generator)
@@ -295,7 +298,7 @@ def train_author(author):
     print("dup_samples_count:", dup_samples_count)
     print("train_total_samples_0dup = " + str(train_total_samples_0dup))
     epochs = 10
-    for duplications in range(1, 10, 1):
+    for duplications in range(1, 17, 5):
         train_total_samples = train_total_samples_0dup + (duplications * train_total_samples_0dup)
         print("train_total_samples = " + str(train_total_samples))
         train_total_samples = 0
@@ -358,20 +361,7 @@ if __name__ == '__main__':
     author = 'austen'
     model_path = "MyModels"
     print("train")
-    text_generator = train_text_generator(5, author)
-    for _ in text_generator:
-        pass
-    print("valid_________________________")
-    text_generator = valid_text_generator(author)
-    for _ in text_generator:
-        pass
-    print("test_________________________")
-    text_generator = test_text_generator(author)
-    for _ in text_generator:
-        pass
     #generate_text_from_test(author, model_path, 20)
     #train_author('austen')  # Train on Austen
-    #calcAllPerp(author, folder)
+    calcAllPerp(author, model_path)
     print("test test test")
-    print("test test test")
-
